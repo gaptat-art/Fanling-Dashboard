@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Traffic Dashboard</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      background-color: #ffffff;
+      color: #000000;
+      font-family: sans-serif;
+    }
+
+    body {
+      padding: 6px;
+    }
+
+    body.landscape {
+      -webkit-transform: rotate(90deg);
+      transform: rotate(90deg);
+      -webkit-transform-origin: top left;
+      transform-origin: top left;
+      position: absolute;
+      top: 0;
+      left: 100%;
+      width: 100vh;
+      height: 100vw;
+      overflow-x: hidden;
+    }
+
+    header {
+      border-bottom: 3px solid #000000;
+      padding-bottom: 6px;
+      margin-bottom: 10px;
+      width: 100%;
+    }
+
+    .refresh-btn {
+      background-color: #ffffff;
+      color: #000000;
+      border: 3px solid #000000;
+      padding: 6px 14px;
+      font-size: 1.5rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .refresh-btn:active {
+      background-color: #000000;
+      color: #ffffff;
+    }
+
+    .mode-btn {
+      width: 100%;
+      background-color: #ffffff;
+      color: #000000;
+      border: 3px solid #000000;
+      padding: 8px 2px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      cursor: pointer;
+      text-align: center;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+
+    .mode-btn.active {
+      background-color: #000000;
+      color: #ffffff;
+    }
+
+    .section-title {
+      font-size: 1.8rem;
+      font-weight: bold;
+      margin: 16px 0 8px 0;
+      padding-left: 8px;
+      border-left: 8px solid #000000;
+    }
+
+    .card {
+      background-color: #ffffff;
+      border: 3px solid #000000;
+      border-radius: 4px;
+      padding: 10px;
+      margin-bottom: 10px;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 6px;">
+      <tr>
+        <td style="font-size: 2.2rem; font-weight: bold; vertical-align: middle;">Traffic Dashboard</td>
+        <td style="text-align: right; vertical-align: middle; white-space: nowrap;">
+          <button class="refresh-btn" onclick="updateDashboard(true)">刷新</button>
+        </td>
+      </tr>
+    </table>
+    <table style="width: 100%; border-collapse: collapse; font-weight: bold;">
+      <tr>
+        <td id="weather-info" style="font-size: 1.6rem; vertical-align: middle;">香港 --&deg;C</td>
+        <td id="last-updated" style="font-size: 1.4rem; text-align: right; vertical-align: middle; white-space: nowrap;">Updating...</td>
+      </tr>
+    </table>
+  </header>
+
+  <table style="width: 100%; border-collapse: separate; border-spacing: 3px; margin-bottom: 10px;">
+    <tr>
+      <td style="width: 33.33%;"><button id="btn-mtr" class="mode-btn" onclick="setMode('mtr')">日常MTR</button></td>
+      <td style="width: 33.33%;"><button id="btn-bus" class="mode-btn" onclick="setMode('bus')">日常Bus</button></td>
+      <td style="width: 33.33%;"><button id="btn-travel" class="mode-btn" onclick="setMode('travel')">旅行</button></td>
+    </tr>
+  </table>
+
+  <div id="dashboard-container"></div>
+
+  <canvas id="keep-awake-canvas" width="1" height="1" style="display:none;"></canvas>
+
+  <script>
+    if (window.location.search.indexOf('rotate=1') !== -1) {
+      document.body.className += ' landscape';
+    }
+
+    var MODES = {
+      mtr: [
+        { title: "港鐵粉嶺站 (往上水/羅湖/落馬洲)", watchlist: [
+            { type: "MTR", line: "EAL", sta: "FAN", dest: "LOW", routeName: "東鐵綫", destName: "羅湖" },
+            { type: "MTR", line: "EAL", sta: "FAN", dest: "LMC", routeName: "東鐵綫", destName: "落馬洲" }
+          ]
+        },
+        { title: "港鐵粉嶺站 (往金鐘方向)", watchlist: [
+            { type: "MTR", line: "EAL", sta: "FAN", dest: "ADM", routeName: "東鐵綫", destName: "金鐘" }
+          ]
+        }
+      ],
+      bus: [
+        { title: "牽晴間出發", watchlist: [
+            { type: "KMB", route: "277X", stopId: "", serviceType: 1 },
+            { type: "KMB", route: "978",  stopId: "", serviceType: 1 },
+            { type: "KMB", route: "70K",  stopId: "", serviceType: 1 },
+            { type: "KMB", route: "270A", stopId: "", serviceType: 1 },
+            { type: "KMB", route: "270P", stopId: "", serviceType: 1 }
+          ]
+        }
+      ],
+      travel: [
+        { title: "形點出發", watchlist: [
+            { type: "KMB", route: "A36",  stopId: "7B93AB79165E79E6", serviceType: 1 },
+            { type: "KMB", route: "B1",  stopId: "87E436C0C5646BCE", serviceType: 1 },
+            { type: "KMB", route: "B9",  stopId: "4E2EC89B41600D7E", serviceType: 1 }
+          ]
+        }
+      ]
+    };
+
+    var apiCache = {};
+    var cacheTimeout = 15000;
+    var currentMode = getSavedMode();
+
+    function getSavedMode() {
+      try {
+        var saved = localStorage.getItem("eta_dashboard_mode");
+        if (saved && MODES[saved]) return saved;
+      } catch (e) {}
+      var match = window.location.search.match(/[?&]mode=(mtr|bus|travel)/);
+      return (match && MODES[match[1]]) ? match[1] : "mtr";
+    }
+
+    function setMode(mode) {
+      if (currentMode === mode) return;
+      currentMode = mode;
+      
+      try {
+        localStorage.setItem("eta_dashboard_mode", mode);
+      } catch (e) {}
+
+      if (window.history && window.history.replaceState) {
+        var url = new URL(window.location.href);
+        url.searchParams.set("mode", mode);
+        window.history.replaceState(null, "", url.toString());
+      }
+
+      updateModeUI();
+      setTimeout(function() { updateDashboard(false); }, 10);
+    }
+
+    function updateModeUI() {
+      var modes = ['mtr', 'bus', 'travel'];
+      for (var i = 0; i < modes.length; i++) {
+        var btn = document.getElementById("btn-" + modes[i]);
+        if (btn) {
+          btn.className = "mode-btn" + (currentMode === modes[i] ? " active" : "");
+        }
+      }
+    }
+
+    function fetchWithCache(url, callback) {
+      var now = new Date().getTime();
+      if (apiCache[url] && (now - apiCache[url].time < cacheTimeout)) {
+        callback(apiCache[url].data);
+        return;
+      }
+
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", url, true);
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) {
+          if (xhr.status === 200) {
+            try {
+              var json = JSON.parse(xhr.responseText);
+              apiCache[url] = { time: new Date().getTime(), data: json };
+              callback(json);
+            } catch (e) {
+              callback(null);
+            }
+          } else {
+            callback(null);
+          }
+        }
+      };
+      xhr.send();
+    }
+
+    function fetchWeather() {
+      var url = "https://api.open-meteo.com/v1/forecast?latitude=22.3193&longitude=114.1694&current=temperature_2m,relative_humidity_2m";
+      fetchWithCache(url, function(json) {
+        if (json && json.current) {
+          var temp = Math.round(json.current.temperature_2m);
+          var hum = json.current.relative_humidity_2m ? " 濕度 " + json.current.relative_humidity_2m + "%" : "";
+          var elem = document.getElementById("weather-info");
+          if (elem) elem.innerHTML = "香港 " + temp + "&deg;C" + hum;
+        }
+      });
+    }
+
+    function parseISOTime(str) {
+      if (!str) return NaN;
+      var parts = str.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
+      if (parts) {
+        return Date.UTC(parseInt(parts[1], 10), parseInt(parts[2], 10) - 1, parseInt(parts[3], 10), parseInt(parts[4], 10) - 8, parseInt(parts[5], 10), parseInt(parts[6], 10));
+      }
+      return new Date(str).getTime();
+    }
+
+    function calculateMinutes(etaString) {
+      if (!etaString) return "No data";
+      var etaMs = parseISOTime(etaString);
+      if (isNaN(etaMs)) return "No data";
+      var diffMins = Math.ceil((etaMs - new Date().getTime()) / 60000);
+      return diffMins <= 0 ? "Arriving" : diffMins + " min";
+    }
+
+    function formatTime(etaString) {
+      if (!etaString) return "--:--";
+      var parts = etaString.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+      if (parts) {
+        return parts[4] + ":" + parts[5];
+      }
+      return "--:--";
+    }
+
+    function updateDashboard(forceRefresh) {
+      if (forceRefresh) apiCache = {};
+      fetchWeather();
+
+      var container = document.getElementById("dashboard-container");
+      var groups = MODES[currentMode] || [];
+      var htmlBuffer = "";
+
+      for (var g = 0; g < groups.length; g++) {
+        var group = groups[g];
+        htmlBuffer += '<div class="section-title">' + group.title + '</div>';
+
+        if (group.watchlist.length === 0) {
+          htmlBuffer += '<div class="card"><div style="font-size: 1.5rem; font-weight: bold;">No routes configured.</div></div>';
+        } else {
+          for (var w = 0; w < group.watchlist.length; w++) {
+            var target = group.watchlist[w];
+            var isMTR = (target.type === "MTR");
+            var cardId = isMTR ? ("mtr-" + target.line + "-" + target.sta + "-" + target.dest + "-" + w) : ("kmb-" + target.route + "-" + target.stopId);
+            var routeTitle = isMTR ? (target.routeName || "MTR") : target.route;
+            var initialDest = isMTR ? ("往 " + (target.destName || "Loading...")) : "往 Loading...";
+
+            htmlBuffer += '<div class="card">' +
+              '<table style="width: 100%; border-collapse: collapse; border-bottom: 2px solid #000000; padding-bottom: 6px; margin-bottom: 8px;">' +
+                '<tr>' +
+                  '<td style="font-size: 3rem; font-weight: bold; line-height: 1; vertical-align: bottom;">' + routeTitle + '</td>' +
+                  '<td style="font-size: 1.6rem; font-weight: bold; text-align: right; vertical-align: bottom; white-space: nowrap;" id="dest-' + cardId + '">' + initialDest + '</td>' +
+                '</tr>' +
+              '</table>' +
+              '<table style="width: 100%; border-collapse: collapse;" id="list-' + cardId + '">' +
+                '<tr><td style="font-size: 1.5rem; padding: 6px 0;">Loading...</td></tr>' +
+              '</table>' +
+            '</div>';
+          }
+        }
+      }
+
+      container.innerHTML = htmlBuffer;
+
+      for (var g = 0; g < groups.length; g++) {
+        var group = groups[g];
+
+        for (var w = 0; w < group.watchlist.length; w++) {
+          (function(target, targetIndex) {
+            var isMTR = (target.type === "MTR");
+            var cardId = isMTR ? ("mtr-" + target.line + "-" + target.sta + "-" + target.dest + "-" + targetIndex) : ("kmb-" + target.route + "-" + target.stopId);
+
+            if (isMTR) {
+              var mtrUrl = "https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line=" + target.line + "&sta=" + target.sta;
+              fetchWithCache(mtrUrl, function(json) {
+                var listElem = document.getElementById("list-" + cardId);
+                if (!listElem) return;
+                
+                var key = target.line + "-" + target.sta;
+                var trainData = json && json.data && json.data[key];
+                var results = [];
+                if (trainData) {
+                  var directions = ["UP", "DOWN"];
+                  for (var d = 0; d < directions.length; d++) {
+                    var list = trainData[directions[d]];
+                    if (list) {
+                      for (var i = 0; i < list.length; i++) {
+                        if (!target.dest || list[i].dest === target.dest) results.push(list[i]);
+                      }
+                    }
+                  }
+                }
+                results.sort(function(a, b) { return parseISOTime(a.time) - parseISOTime(b.time); });
+
+                var etaRows = "";
+                if (results.length === 0) {
+                  etaRows = '<tr><td colspan="2" style="font-size: 1.5rem; padding: 6px 0;">No upcoming departures</td></tr>';
+                } else {
+                  var limit = results.length < 3 ? results.length : 3;
+                  for (var i = 0; i < limit; i++) {
+                    var item = results[i];
+                    var minText = calculateMinutes(item.time);
+                    var timeFormatted = formatTime(item.time);
+                    var platRemark = item.plat ? " (月台 " + item.plat + ")" : "";
+                    var borderStyle = i < limit - 1 ? "border-bottom: 1px dashed #000000;" : "";
+
+                    etaRows += '<tr style="' + borderStyle + '">' +
+                      '<td style="font-size: 1.5rem; padding: 8px 0; white-space: nowrap;">' + timeFormatted + platRemark + '</td>' +
+                      '<td style="font-size: 1.9rem; font-weight: bold; text-align: right; white-space: nowrap; padding: 8px 0;">' + minText + '</td>' +
+                    '</tr>';
+                  }
+                }
+                listElem.innerHTML = etaRows;
+              });
+            } else {
+              if (!target.stopId) {
+                var listElem = document.getElementById("list-" + cardId);
+                if (listElem) {
+                  listElem.innerHTML = '<tr><td colspan="2" style="font-size: 1.5rem; padding: 6px 0;">Stop ID needed</td></tr>';
+                }
+                return;
+              }
+              var kmbUrl = "https://data.etabus.gov.hk/v1/transport/kmb/eta/" + target.stopId + "/" + target.route + "/" + target.serviceType;
+              fetchWithCache(kmbUrl, function(json) {
+                var destElem = document.getElementById("dest-" + cardId);
+                var listElem = document.getElementById("list-" + cardId);
+                if (!listElem) return;
+
+                var etas = json && json.data ? json.data : [];
+                var destName = (etas.length > 0 && etas[0].dest_tc) ? etas[0].dest_tc : "Unknown Destination";
+                if (destElem) destElem.textContent = "往 " + destName;
+
+                var etaRows = "";
+                if (etas.length === 0) {
+                  etaRows = '<tr><td colspan="2" style="font-size: 1.5rem; padding: 6px 0;">No upcoming departures</td></tr>';
+                } else {
+                  var limit = etas.length < 3 ? etas.length : 3;
+                  for (var i = 0; i < limit; i++) {
+                    var item = etas[i];
+                    var minText = calculateMinutes(item.eta);
+                    var timeFormatted = formatTime(item.eta);
+                    var remark = item.rmk_tc ? " (" + item.rmk_tc + ")" : "";
+                    var borderStyle = i < limit - 1 ? "border-bottom: 1px dashed #000000;" : "";
+
+                    etaRows += '<tr style="' + borderStyle + '">' +
+                      '<td style="font-size: 1.5rem; padding: 8px 0; white-space: nowrap;">' + timeFormatted + remark + '</td>' +
+                      '<td style="font-size: 1.9rem; font-weight: bold; text-align: right; white-space: nowrap; padding: 8px 0;">' + minText + '</td>' +
+                    '</tr>';
+                  }
+                }
+                listElem.innerHTML = etaRows;
+              });
+            }
+          })(group.watchlist[w], w);
+        }
+      }
+
+      var now = new Date();
+      var h = (now.getUTCHours() + 8) % 24;
+      var m = now.getUTCMinutes();
+      var s = now.getUTCSeconds();
+      document.getElementById("last-updated").textContent = (h < 10 ? "0" + h : h) + ":" + (m < 10 ? "0" + m : m) + ":" + (s < 10 ? "0" + s : s);
+    }
+
+    var canvas = document.getElementById('keep-awake-canvas');
+    if (canvas && canvas.getContext) {
+      var ctx = canvas.getContext('2d');
+      var toggle = false;
+      setInterval(function() {
+        ctx.fillStyle = toggle ? "#ffffff" : "#000000";
+        ctx.fillRect(0, 0, 1, 1);
+        toggle = !toggle;
+      }, 12000);
+    }
+
+    updateModeUI();
+    updateDashboard(false);
+    setInterval(function() { updateDashboard(false); }, 20000);
+  </script>
+</body>
+</html>
