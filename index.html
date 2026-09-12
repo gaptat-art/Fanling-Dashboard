@@ -155,9 +155,12 @@
         }
       ],
       travel: [
-        { title: "旅行交通出發", watchlist: [
-            { type: "KMB", route: "A43", stopId: "", serviceType: 1 },
-            { type: "KMB", route: "B7",  stopId: "", serviceType: 1 }
+        { title: "欣盛苑出發", watchlist: [
+            { type: "KMB", route: "A43", stopId: "", serviceType: 1 }
+          ]
+        },
+        { title: "粉嶺火車站出發", watchlist: [
+            { type: "CTB", route: "B7", stopId: "" }
           ]
         }
       ]
@@ -288,8 +291,9 @@
             var target = group.watchlist[w];
             var isMultiMTR = (target.type === "MTR-MULTI");
             var isMTR = (target.type === "MTR" || isMultiMTR);
+            var isCTB = (target.type === "CTB");
             
-            var cardId = isMTR ? ("mtr-" + target.line + "-" + target.sta + "-" + w) : ("kmb-" + target.route + "-" + target.stopId);
+            var cardId = isMTR ? ("mtr-" + target.line + "-" + target.sta + "-" + w) : (isCTB ? ("ctb-" + target.route + "-" + w) : ("kmb-" + target.route + "-" + target.stopId));
             var routeTitle = isMTR ? (target.routeName || "MTR") : target.route;
             var initialDest = isMultiMTR ? "往 羅湖 / 落馬洲" : (isMTR ? ("往 " + (target.destName || "Loading...")) : "往 Loading...");
 
@@ -317,7 +321,8 @@
           (function(target, targetIndex) {
             var isMultiMTR = (target.type === "MTR-MULTI");
             var isMTR = (target.type === "MTR" || isMultiMTR);
-            var cardId = isMTR ? ("mtr-" + target.line + "-" + target.sta + "-" + targetIndex) : ("kmb-" + target.route + "-" + target.stopId);
+            var isCTB = (target.type === "CTB");
+            var cardId = isMTR ? ("mtr-" + target.line + "-" + target.sta + "-" + targetIndex) : (isCTB ? ("ctb-" + target.route + "-" + targetIndex) : ("kmb-" + target.route + "-" + target.stopId));
 
             if (isMTR) {
               var mtrUrl = "https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line=" + target.line + "&sta=" + target.sta;
@@ -364,6 +369,44 @@
 
                     etaRows += '<tr style="' + borderStyle + '">' +
                       '<td style="font-size: 1.5rem; padding: 8px 0; white-space: nowrap;">' + timeFormatted + '<span style="font-size: 1.3rem; font-weight: bold;">' + destLabel + '</span>' + platRemark + '</td>' +
+                      '<td style="font-size: 1.9rem; font-weight: bold; text-align: right; white-space: nowrap; padding: 8px 0;">' + minText + '</td>' +
+                    '</tr>';
+                  }
+                }
+                listElem.innerHTML = etaRows;
+              });
+            } else if (isCTB) {
+              if (!target.stopId) {
+                var listElem = document.getElementById("list-" + cardId);
+                if (listElem) {
+                  listElem.innerHTML = '<tr><td colspan="2" style="font-size: 1.5rem; padding: 6px 0;">Stop ID needed</td></tr>';
+                }
+                return;
+              }
+              var ctbUrl = "https://rt.data.gov.hk/v2/transport/citybus/eta/sub-route/" + target.stopId + "/" + target.route;
+              fetchWithCache(ctbUrl, function(json) {
+                var destElem = document.getElementById("dest-" + cardId);
+                var listElem = document.getElementById("list-" + cardId);
+                if (!listElem) return;
+
+                var etas = json && json.data ? json.data : [];
+                var destName = (etas.length > 0 && etas[0].dest_tc) ? etas[0].dest_tc : "香園圍口岸";
+                if (destElem) destElem.textContent = "往 " + destName;
+
+                var etaRows = "";
+                if (etas.length === 0) {
+                  etaRows = '<tr><td colspan="2" style="font-size: 1.5rem; padding: 6px 0;">No upcoming departures</td></tr>';
+                } else {
+                  var limit = etas.length < 3 ? etas.length : 3;
+                  for (var i = 0; i < limit; i++) {
+                    var item = etas[i];
+                    var minText = calculateMinutes(item.eta);
+                    var timeFormatted = formatTime(item.eta);
+                    var remark = item.rmk_tc ? " (" + item.rmk_tc + ")" : "";
+                    var borderStyle = i < limit - 1 ? "border-bottom: 1px dashed #000000;" : "";
+
+                    etaRows += '<tr style="' + borderStyle + '">' +
+                      '<td style="font-size: 1.5rem; padding: 8px 0; white-space: nowrap;">' + timeFormatted + remark + '</td>' +
                       '<td style="font-size: 1.9rem; font-weight: bold; text-align: right; white-space: nowrap; padding: 8px 0;">' + minText + '</td>' +
                     '</tr>';
                   }
