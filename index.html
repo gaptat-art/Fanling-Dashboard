@@ -386,6 +386,10 @@
                 if (!listElem) return;
 
                 var etas = json && json.data ? json.data : [];
+                etas.sort(function(a, b) {
+                  return parseISOTime(a.eta) - parseISOTime(b.eta);
+                });
+
                 var destName = (etas.length > 0 && etas[0].dest_tc) ? etas[0].dest_tc : "香園圍口岸";
                 if (destElem) destElem.textContent = "往 " + destName;
 
