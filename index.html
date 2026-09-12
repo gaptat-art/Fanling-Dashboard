@@ -135,9 +135,8 @@
 
     var MODES = {
       mtr: [
-        { title: "港鐵粉嶺站 (往上水/羅湖/落馬洲)", watchlist: [
-            { type: "MTR", line: "EAL", sta: "FAN", dest: "LOW", routeName: "東鐵綫", destName: "羅湖" },
-            { type: "MTR", line: "EAL", sta: "FAN", dest: "LMC", routeName: "東鐵綫", destName: "落馬洲" }
+        { title: "港鐵粉嶺站 (往上水方向)", watchlist: [
+            { type: "MTR-MULTI", line: "EAL", sta: "FAN", dests: ["LOW", "LMC"], routeName: "東鐵綫" }
           ]
         },
         { title: "港鐵粉嶺站 (往金鐘方向)", watchlist: [
@@ -288,10 +287,12 @@
         } else {
           for (var w = 0; w < group.watchlist.length; w++) {
             var target = group.watchlist[w];
-            var isMTR = (target.type === "MTR");
-            var cardId = isMTR ? ("mtr-" + target.line + "-" + target.sta + "-" + target.dest + "-" + w) : ("kmb-" + target.route + "-" + target.stopId);
+            var isMultiMTR = (target.type === "MTR-MULTI");
+            var isMTR = (target.type === "MTR" || isMultiMTR);
+            
+            var cardId = isMTR ? ("mtr-" + target.line + "-" + target.sta + "-" + w) : ("kmb-" + target.route + "-" + target.stopId);
             var routeTitle = isMTR ? (target.routeName || "MTR") : target.route;
-            var initialDest = isMTR ? ("往 " + (target.destName || "Loading...")) : "往 Loading...";
+            var initialDest = isMultiMTR ? "往 羅湖 / 落馬洲" : (isMTR ? ("往 " + (target.destName || "Loading...")) : "往 Loading...");
 
             htmlBuffer += '<div class="card">' +
               '<table style="width: 100%; border-collapse: collapse; border-bottom: 2px solid #000000; padding-bottom: 6px; margin-bottom: 8px;">' +
@@ -315,8 +316,9 @@
 
         for (var w = 0; w < group.watchlist.length; w++) {
           (function(target, targetIndex) {
-            var isMTR = (target.type === "MTR");
-            var cardId = isMTR ? ("mtr-" + target.line + "-" + target.sta + "-" + target.dest + "-" + targetIndex) : ("kmb-" + target.route + "-" + target.stopId);
+            var isMultiMTR = (target.type === "MTR-MULTI");
+            var isMTR = (target.type === "MTR" || isMultiMTR);
+            var cardId = isMTR ? ("mtr-" + target.line + "-" + target.sta + "-" + targetIndex) : ("kmb-" + target.route + "-" + target.stopId);
 
             if (isMTR) {
               var mtrUrl = "https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line=" + target.line + "&sta=" + target.sta;
@@ -333,7 +335,11 @@
                     var list = trainData[directions[d]];
                     if (list) {
                       for (var i = 0; i < list.length; i++) {
-                        if (!target.dest || list[i].dest === target.dest) results.push(list[i]);
+                        if (isMultiMTR) {
+                          if (target.dests.indexOf(list[i].dest) !== -1) results.push(list[i]);
+                        } else {
+                          if (!target.dest || list[i].dest === target.dest) results.push(list[i]);
+                        }
                       }
                     }
                   }
@@ -349,11 +355,16 @@
                     var item = results[i];
                     var minText = calculateMinutes(item.time);
                     var timeFormatted = formatTime(item.time);
-                    var platRemark = item.plat ? " (月台 " + item.plat + ")" : "";
+                    var destLabel = "";
+                    if (isMultiMTR) {
+                      var dName = item.dest === "LOW" ? "羅湖" : (item.dest === "LMC" ? "落馬洲" : item.dest);
+                      destLabel = " (" + dName + ")";
+                    }
+                    var platRemark = item.plat ? " [月台 " + item.plat + "]" : "";
                     var borderStyle = i < limit - 1 ? "border-bottom: 1px dashed #000000;" : "";
 
                     etaRows += '<tr style="' + borderStyle + '">' +
-                      '<td style="font-size: 1.5rem; padding: 8px 0; white-space: nowrap;">' + timeFormatted + platRemark + '</td>' +
+                      '<td style="font-size: 1.5rem; padding: 8px 0; white-space: nowrap;">' + timeFormatted + '<span style="font-size: 1.3rem; font-weight: bold;">' + destLabel + '</span>' + platRemark + '</td>' +
                       '<td style="font-size: 1.9rem; font-weight: bold; text-align: right; white-space: nowrap; padding: 8px 0;">' + minText + '</td>' +
                     '</tr>';
                   }
