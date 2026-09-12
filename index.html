@@ -194,7 +194,7 @@
       }
 
       updateModeUI();
-      setTimeout(function() { updateDashboard(false); }, 10);
+      updateDashboard(false);
     }
 
     function updateModeUI() {
@@ -293,7 +293,7 @@
             var isMTR = (target.type === "MTR" || isMultiMTR);
             var isCTB = (target.type === "CTB");
             
-            var cardId = isMTR ? ("mtr-" + target.line + "-" + target.sta + "-" + w) : (isCTB ? ("ctb-" + target.route + "-" + w) : ("kmb-" + target.route + "-" + target.stopId));
+            var cardId = "card-" + g + "-" + w;
             var routeTitle = isMTR ? (target.routeName || "MTR") : target.route;
             var initialDest = isMultiMTR ? "往 金鐘 / 紅磡 / 會展" : (isMTR ? ("往 " + (target.destName || "Loading...")) : "往 Loading...");
 
@@ -316,13 +316,11 @@
 
       for (var g = 0; g < groups.length; g++) {
         var group = groups[g];
-
         for (var w = 0; w < group.watchlist.length; w++) {
-          (function(target, targetIndex) {
+          (function(target, cardId) {
             var isMultiMTR = (target.type === "MTR-MULTI");
             var isMTR = (target.type === "MTR" || isMultiMTR);
             var isCTB = (target.type === "CTB");
-            var cardId = isMTR ? ("mtr-" + target.line + "-" + target.sta + "-" + targetIndex) : (isCTB ? ("ctb-" + target.route + "-" + targetIndex) : ("kmb-" + target.route + "-" + target.stopId));
 
             if (isMTR) {
               var mtrUrl = "https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line=" + target.line + "&sta=" + target.sta;
@@ -378,9 +376,7 @@
             } else if (isCTB) {
               if (!target.stopId) {
                 var listElem = document.getElementById("list-" + cardId);
-                if (listElem) {
-                  listElem.innerHTML = '<tr><td colspan="2" style="font-size: 1.5rem; padding: 6px 0;">Stop ID needed</td></tr>';
-                }
+                if (listElem) listElem.innerHTML = '<tr><td colspan="2" style="font-size: 1.5rem; padding: 6px 0;">Stop ID needed</td></tr>';
                 return;
               }
               var ctbUrl = "https://rt.data.gov.hk/v2/transport/citybus/eta/sub-route/" + target.stopId + "/" + target.route;
@@ -416,9 +412,7 @@
             } else {
               if (!target.stopId) {
                 var listElem = document.getElementById("list-" + cardId);
-                if (listElem) {
-                  listElem.innerHTML = '<tr><td colspan="2" style="font-size: 1.5rem; padding: 6px 0;">Stop ID needed</td></tr>';
-                }
+                if (listElem) listElem.innerHTML = '<tr><td colspan="2" style="font-size: 1.5rem; padding: 6px 0;">Stop ID needed</td></tr>';
                 return;
               }
               var kmbUrl = "https://data.etabus.gov.hk/v1/transport/kmb/eta/" + target.stopId + "/" + target.route + "/" + target.serviceType;
@@ -452,7 +446,7 @@
                 listElem.innerHTML = etaRows;
               });
             }
-          })(group.watchlist[w], w);
+          })(group.watchlist[w], "card-" + g + "-" + w);
         }
       }
 
