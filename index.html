@@ -379,7 +379,7 @@
                 if (listElem) listElem.innerHTML = '<tr><td colspan="2" style="font-size: 1.5rem; padding: 6px 0;">Stop ID needed</td></tr>';
                 return;
               }
-              var ctbUrl = "https://rt.data.gov.hk/v2/transport/citybus/eta/sub-route/" + target.stopId + "/" + target.route;
+              var ctbUrl = "https://rt.data.gov.hk/v2/transport/citybus/eta/" + target.stopId + "/" + target.route;
               fetchWithCache(ctbUrl, function(json) {
                 var destElem = document.getElementById("dest-" + cardId);
                 var listElem = document.getElementById("list-" + cardId);
@@ -443,7 +443,7 @@
                     '</tr>';
                   }
                 }
-                listElem.innerHTML = etaRows;
+                listElem.innerHTML = iterRows = etaRows;
               });
             }
           })(group.watchlist[w], "card-" + g + "-" + w);
