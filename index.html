@@ -136,7 +136,7 @@
     var MODES = {
       mtr: [
         { title: "港鐵粉嶺站 (往上水方向)", watchlist: [
-            { type: "MTR-MULTI", line: "EAL", sta: "FAN", dests: ["LOW", "LMC"], routeName: "東鐵綫" }
+            { type: "MTR-MULTI", line: "EAL", sta: "FAN", dests: ["LOW", "LMC"], routeName: "東鐵綫", destName: "羅湖 / 落馬洲" }
           ]
         },
         { title: "港鐵粉嶺站 (往金鐘方向)", watchlist: [
@@ -295,7 +295,7 @@
             
             var cardId = "card-" + g + "-" + w;
             var routeTitle = isMTR ? (target.routeName || "MTR") : target.route;
-            var initialDest = isMultiMTR ? "往 金鐘 / 紅磡 / 會展" : (isMTR ? ("往 " + (target.destName || "Loading...")) : "往 Loading...");
+            var initialDest = "往 " + (target.destName || "Loading...");
 
             htmlBuffer += '<div class="card">' +
               '<table style="width: 100%; border-collapse: collapse; border-bottom: 2px solid #000000; padding-bottom: 6px; margin-bottom: 8px;">' +
@@ -359,7 +359,7 @@
                     var timeFormatted = formatTime(item.time);
                     var destLabel = "";
                     if (isMultiMTR) {
-                      var dName = item.dest === "ADM" ? "金鐘" : (item.dest === "HUH" ? "紅磡" : (item.dest === "EXC" ? "會展" : item.dest));
+                      var dName = item.dest === "LOW" ? "羅湖" : (item.dest === "LMC" ? "落馬洲" : (item.dest === "ADM" ? "金鐘" : (item.dest === "HUH" ? "紅磡" : (item.dest === "EXC" ? "會展" : item.dest))));
                       destLabel = " (" + dName + ")";
                     }
                     var platRemark = item.plat ? " [月台 " + item.plat + "]" : "";
